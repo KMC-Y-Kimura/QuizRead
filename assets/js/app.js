@@ -509,16 +509,21 @@ function speakSeq(items, onDone){
 }
 function posFromUtt(rec){
   const u=rec.u; if(!u.marks) return reveal;
-  let pos=u.start;
-  if(rec.bChar>=0){ const mk=u.marks.find(m=>rec.bChar>=m.c0 && rec.bChar<m.c1) || u.marks[u.marks.length-1]; pos=Math.max(pos, mk.t.end); }
+  let boundaryPos=null, estimatedPos=null;
+  if(rec.bChar>=0){
+    const mk=u.marks.find(m=>rec.bChar>=m.c0 && rec.bChar<m.c1) || u.marks[u.marks.length-1];
+    boundaryPos=mk.t.end;
+  }
   if(rec.t0){
     const el=performance.now()-rec.t0, est=u.mora*msPerMora/u.rate;
     const target=Math.min(0.985, el/est)*u.mora;
     const mk=u.marks.find(m=>target<m.m1) || u.marks[u.marks.length-1];
     const frac = mk.m1>mk.m0 ? Math.min(1,(target-mk.m0)/(mk.m1-mk.m0)) : 1;
-    const tp = mk.t.start + Math.round(frac*(mk.t.end-mk.t.start));
-    pos = rec.bChar>=0 ? Math.max(pos, Math.min(tp, pos + 6)) : Math.max(pos, tp);
+    estimatedPos = mk.t.start + Math.round(frac*(mk.t.end-mk.t.start));
   }
+  // 一部の音声は開始直後に文末の boundary を返す。時間推定より最大3文字だけ先行を許し、全文表示への飛びを防ぐ。
+  let pos = estimatedPos ?? boundaryPos ?? u.start;
+  if(estimatedPos!=null && boundaryPos!=null) pos=Math.max(estimatedPos,Math.min(boundaryPos,estimatedPos+3));
   return Math.min(pos, u.end);
 }
 function loop(){

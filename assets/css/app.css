@@ -96,7 +96,6 @@ details summary{cursor:pointer;font-size:13px;color:var(--muted)}
 .qlist .lv{display:inline-block;font-size:10px;font-weight:700;min-width:16px;text-align:center;padding:0 4px;border-radius:4px;margin-right:6px}
 .qtext{font-size:clamp(21px,2.5vw,31px);line-height:1.75;font-weight:700;min-height:5.4em;letter-spacing:.01em;overflow-wrap:anywhere;padding:4px 2px;position:relative}
 .qtext .rest{color:var(--hidden)}
-.qtext.dim .rest{color:var(--dimtext)}
 .qtext .slash{font-weight:700;padding-inline:.06em}
 .qtext .cursor{display:inline-block;width:3px;height:1em;background:var(--accent);vertical-align:-.12em;margin-left:1px;animation:pulse .8s infinite}
 .idlehint{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;text-align:center;font-size:15px;font-weight:400;color:var(--muted);pointer-events:none;padding:0 12px}

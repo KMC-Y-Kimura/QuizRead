@@ -461,7 +461,7 @@ function defaultGame(){
 }
 if(!state.game || !Array.isArray(state.game.players)) defaultGame();
 state.played = state.played || {};
-state.ui = {view:"game", tapBuzz:false, skipDone:true, dispAll:false, ...(state.ui||{})};
+state.ui = {view:"game", tapBuzz:false, skipDone:true, ...(state.ui||{})};
 players().forEach(p=>{ if(p.remote) p.online=false; });
 
 const getP = id => id==="solo" ? SOLO : players().find(p=>p.id===id);
@@ -691,8 +691,6 @@ function tick(){
 const esc = s => String(s).replace(/[&<>"]/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 function renderText(){
   const el=$("qText"), d=an.display, L=d.length;
-  const live=document.body.classList.contains("live");
-  el.classList.toggle("dim", state.ui.dispAll && !live);
   let vis = ph==="idle" ? 0 : ph==="reading" ? reveal : ph==="think" ? L : ph==="answering" ? qs.buzzAt : L;
   vis=Math.max(0,Math.min(L,vis));
   const marks=qs.marks.filter(m=>m.pos<=vis).sort((a,b)=>a.pos-b.pos);
@@ -701,7 +699,7 @@ function renderText(){
   html+=esc(d.slice(cur,vis));
   if(ph==="reading") html+=`<span class="cursor"></span>`;
   html+=`<span class="rest">${esc(d.slice(vis))}</span>`;
-  if(ph==="idle" && !(state.ui.dispAll && !live)) html+=`<span class="idlehint">${soloMode()?"Space で読み上げ開始。読んでいる途中で Space を押すと早押しです":"Space で読み上げ開始。参加者は自分のキーやスマホで早押しします"}</span>`;
+  if(ph==="idle") html+=`<span class="idlehint">${soloMode()?"Space で読み上げ開始。読んでいる途中で Space を押すと早押しです":"Space で読み上げ開始。参加者は自分のキーやスマホで早押しします"}</span>`;
   el.innerHTML=html;
   $("prog").style.width=(L? vis/L*100 : 0)+"%";
 }
@@ -944,8 +942,6 @@ $("board").addEventListener("pointerdown",e=>{
   const c=e.target.closest(".pcard"); if(!c) return;
   e.preventDefault(); const p=getP(c.dataset.pid); if(p && !p.remote) buzzIn(p.id);
 });
-$("dispAll").checked=!!state.ui.dispAll;
-$("dispAll").onchange=()=>{ state.ui.dispAll=$("dispAll").checked; save(); renderText(); };
 $("tapBuzz").checked=!!state.ui.tapBuzz;
 $("tapBuzz").onchange=()=>{ state.ui.tapBuzz=$("tapBuzz").checked; save(); renderBoard(); };
 $("pAdd").onclick=()=>{ if(players().length>=16){ toast("参加者は16人までです"); return; } players().push(mkPlayer(`プレイヤー${players().length+1}`)); save(); renderPlayers(); renderBoard(); };

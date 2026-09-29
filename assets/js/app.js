@@ -1192,24 +1192,36 @@ function setRoomChip(){
   const n=players().filter(p=>p.remote && p.online!==false).length;
   c.hidden=false; c.className="chip "+(hostRoom.connected()?"ok":"warn");
   c.querySelector("span").textContent=`スマホ受付中 ${roomCode}・${n}台`;
-  $("roomInfo").textContent = IS_CLAUDE ? `接続中のスマホ ${n}台。部員はこのページを開き「スマホを早押しボタンにする」からコード ${roomCode} を入力します。` : `接続中のスマホ ${n}台。部員はスマホで QR コードを読み取るか、このページの「スマホを早押しボタンにする」からコード ${roomCode} を入力します。`;
+  $("roomInfo").textContent = `接続中のスマホ ${n}台。部員はQRコードを読み取り、名前を入力して参加します。`;
 }
-$("roomStart").onclick=async()=>{
-  const btn=$("roomStart"); btn.disabled=true; btn.textContent="準備しています…";
+function showRoomPanel(){
+  if(document.body.classList.contains("live")) setLive(false);
+  setView("game");
+  $("tabP").click();
+  requestAnimationFrame(()=>$("roomBox").scrollIntoView({block:"nearest",behavior:"smooth"}));
+}
+async function startRoom(){
+  showRoomPanel();
+  if(hostRoom) return;
+  const btn=$("roomStart"), topBtn=$("joinBtn");
+  if(btn.disabled) return;
+  btn.disabled=true; topBtn.disabled=true; btn.textContent="準備しています…";
   let lastErr=null;
   for(let i=0;i<4 && !hostRoom;i++){
     roomCode=String(Math.floor(1000+Math.random()*9000));
     try{ hostRoom=await joinRoom(roomCode,"host"); }catch(e){ lastErr=e; hostRoom=null; if(!(e && e.code==="unavailable-id")) break; }
   }
-  btn.disabled=false; btn.textContent="受付を始める";
+  btn.disabled=false; topBtn.disabled=false; btn.textContent="受付を始める";
   if(!hostRoom){ toast("受付を始められませんでした："+errText(lastErr)); return; }
   hostRoom.onPeers(onHostPeers, err=>{ toast("スマホとの接続が切れました（"+err.code+"）"); });
   hostRoom.onConnection(()=>setRoomChip());
   $("roomIdle").hidden=true; $("roomOn").hidden=false; $("roomCode").textContent=roomCode;
   const qr=$("roomQr");
-  if(!IS_CLAUDE && window.qrcode){ try{ const q=qrcode(0,"M"); q.addData(joinUrl(roomCode)); q.make(); qr.innerHTML=q.createSvgTag({cellSize:4, margin:2, scalable:true}); qr.hidden=false; $("roomUrl").textContent=joinUrl(roomCode); $("roomUrl").hidden=false; }catch(e){ qr.hidden=true; } }
+  if(window.qrcode){ try{ const q=qrcode(0,"M"); q.addData(joinUrl(roomCode)); q.make(); qr.innerHTML=q.createSvgTag({cellSize:4, margin:2, scalable:true}); qr.hidden=false; $("roomUrl").textContent=joinUrl(roomCode); $("roomUrl").hidden=false; }catch(e){ qr.hidden=true; } }
   setRoomChip(); broadcast();
-};
+}
+$("roomStart").onclick=startRoom;
+$("joinBtn").onclick=startRoom;
 $("roomStop").onclick=async()=>{
   if(hostRoom){ try{ await hostRoom.leave(); }catch(e){} }
   hostRoom=null; roomCode=null; players().forEach(p=>{ if(p.remote) p.online=false; });
@@ -1254,8 +1266,14 @@ function broadcast(){
 let bzRoom=null, bzPid=null, bzN=0, bzState=null;
 function lsGet(k){ try{ return localStorage.getItem(k); }catch(e){ return null; } }
 function lsSet(k,v){ try{ localStorage.setItem(k,v); }catch(e){} }
-function openBuzzer(code){ document.body.classList.add("buzzer"); $("bzName").value=lsGet("monyomi.bzname")||""; if(code) $("bzCode").value=code; (code? $("bzName") : $("bzCode")).focus(); }
-$("joinBtn").onclick=()=>openBuzzer();
+function openBuzzer(code){
+  document.body.classList.add("buzzer");
+  $("bzName").value=lsGet("monyomi.bzname")||"";
+  $("bzCodeField").hidden=!!code;
+  $("bzInvite").hidden=!code;
+  if(code){ $("bzCode").value=code; $("bzInvite").textContent=`参加コード ${code} への招待です。名前を入力して参加してください。`; }
+  (code? $("bzName") : $("bzCode")).focus();
+}
 $("bzLeave").onclick=async()=>{ if(bzRoom){ try{ await bzRoom.leave(); }catch(e){} } bzRoom=null; document.body.classList.remove("buzzer"); $("bzJoin").hidden=false; $("bzPlay").hidden=true; if(/^#buzzer/.test(location.hash)) history.replaceState(null,"",location.pathname+location.search); };
 $("bzGo").onclick=async()=>{
   const code=$("bzCode").value.replace(/\D/g,""), name=$("bzName").value.trim().slice(0,12);
@@ -1324,7 +1342,7 @@ renderPlayers(); renderRules(); renderDict(); renderLog();
 refresh();
 setView(state.ui.view||"game");
 { const m=location.hash.match(/^#buzzer(?:-(\d{4}))?$/); if(m) openBuzzer(m[1]); }
-if(!IS_CLAUDE){ $("roomHint").textContent="部員がそれぞれのスマホでこのページを開き、QR コードを読み取るか「スマホを早押しボタンにする」からコードを入れると参加できます。"; }
+if(!IS_CLAUDE){ $("roomHint").textContent="「受付を始める」と参加用QRコードが表示されます。部員はスマホで読み取り、名前を入力して参加できます。"; }
 else { $("saveFile").hidden=true; $("fileAdd").hidden=false; }
 if(window.QuizTokenizer){
   QuizTokenizer.build("dict/").then(tk=>{ TK=tk; setChip("chipDict","ok","読み辞書：準備完了"); if(ph==="idle"||ph==="revealed") refresh(); })

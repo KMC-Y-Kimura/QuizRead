@@ -1269,6 +1269,8 @@ function lsSet(k,v){ try{ localStorage.setItem(k,v); }catch(e){} }
 function openBuzzer(code){
   document.body.classList.add("buzzer");
   $("bzName").value=lsGet("monyomi.bzname")||"";
+  $("bzErr").textContent="";
+  $("bzNetworkHelp").hidden=true;
   $("bzCodeField").hidden=!!code;
   $("bzInvite").hidden=!code;
   if(code){ $("bzCode").value=code; $("bzInvite").textContent=`参加コード ${code} への招待です。名前を入力して参加してください。`; }
@@ -1279,13 +1281,20 @@ $("bzGo").onclick=async()=>{
   const code=$("bzCode").value.replace(/\D/g,""), name=$("bzName").value.trim().slice(0,12);
   if(code.length!==4){ $("bzErr").textContent="4桁のコードを入力してください"; return; }
   if(!name){ $("bzErr").textContent="名前を入力してください"; return; }
+  try{ document.activeElement && document.activeElement.blur(); }catch(e){}
   lsSet("monyomi.bzname", name);
   $("bzErr").textContent="接続しています…";
+  $("bzNetworkHelp").hidden=true;
   bzPid = lsGet("monyomi.bzpid") || Math.random().toString(36).slice(2,12); lsSet("monyomi.bzpid", bzPid);
   $("bzGo").disabled=true;
-  try{ bzRoom = await joinRoom(code,"player"); }catch(e){ $("bzGo").disabled=false; $("bzErr").textContent=errText(e); return; }
+  try{ bzRoom = await joinRoom(code,"player"); }catch(e){
+    $("bzGo").disabled=false;
+    $("bzErr").textContent=errText(e);
+    $("bzNetworkHelp").hidden=!(e && ["host_not_found","network","server-error"].includes(e.code));
+    return;
+  }
   $("bzGo").disabled=false;
-  bzRoom.onConnection(c=>{ if(!c) $("bzStat").textContent="接続が切れました。「戻る」から参加し直してください"; });
+  bzRoom.onConnection(c=>{ if(!c) $("bzStat").textContent="接続が切れました。司会と同じWi‑Fiか確認し、「戻る」から参加し直してください"; });
   await bzRoom.presence({role:"player", pid:bzPid, name, b:null, bn:0}).catch(()=>{});
   bzRoom.onPeers(()=>renderBz(), err=>{ $("bzStat").textContent="接続が切れました。戻ってもう一度参加してください"; });
   $("bzErr").textContent=""; $("bzJoin").hidden=true; $("bzPlay").hidden=false; $("bzMe").textContent=name;
@@ -1296,7 +1305,7 @@ function renderBz(){
   const host=bzRoom.peers().find(p=>p.presence && p.presence.role==="host");
   const btn=$("bzBtn"), st=$("bzStat");
   btn.classList.remove("mine");
-  if(!host){ bzState=null; st.textContent="司会の画面を待っています（コードを確かめてください）"; btn.disabled=true; btn.textContent="押す"; return; }
+  if(!host){ bzState=null; st.textContent="司会を待っています。同じWi‑Fiに接続されているか確認してください"; btn.disabled=true; btn.textContent="押す"; return; }
   const s=host.presence; bzState=s;
   const myId="r_"+bzPid.replace(/[^a-z0-9]/gi,"").slice(0,20);
   const mine=s.pl && s.pl[myId];

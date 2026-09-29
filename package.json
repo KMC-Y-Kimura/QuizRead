@@ -1,0 +1,8 @@
+{
+  "name": "quiz-read",
+  "private": true,
+  "scripts": {
+    "check": "node scripts/validate-questions.mjs",
+    "serve": "python3 -m http.server 8000"
+  }
+}

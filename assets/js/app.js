@@ -604,7 +604,7 @@ function buzzIn(pid){
   render();
 }
 function pushUndo(){
-  undoStack.push(JSON.stringify({players:players(), log:G().log, rankNext:G().rankNext, results:state.results, first:qs.first, order:qs.order, lock:[...qs.lock], nev:qs.events.length, banner}));
+  undoStack.push(JSON.stringify({players:players(), log:G().log, rankNext:G().rankNext, results:state.results, phase:ph, first:qs.first, order:qs.order, lock:[...qs.lock], nev:qs.events.length, banner}));
   if(undoStack.length>30) undoStack.shift();
 }
 function undo(){
@@ -614,12 +614,18 @@ function undo(){
   stopSpeech(); stopTimer(); banner=d.banner||null;
   qs.events.length=Math.min(qs.events.length, d.nev); qs.lock=new Set(d.lock); qs.order=d.order||[]; qs.first=d.first;
   if(qs.first && qs.marks.length) { /* keep marks */ }
-  ph = qs.first ? "answering" : "revealed"; qs.open=false;
+  ph = d.phase || (qs.first ? "answering" : "revealed"); qs.open=false;
   if(ph==="answering" && R().ans>0 && qs.first!=="solo") startTimer("ans", R().ans);
   save(); toast("直前の判定を取り消しました"); render();
 }
-function judge(ok){
+function showAnswer(){
   if(ph!=="answering") return;
+  stopTimer(); ph="judging"; qs.open=false;
+  render();
+}
+function judge(ok){
+  const afterReveal = ph==="judging";
+  if(!(afterReveal || (!ok && ph==="answering"))) return;
   const p=getP(qs.first); if(!p) return;
   pushUndo(); stopTimer();
   const len=an.display.length;
@@ -636,7 +642,7 @@ function judge(ok){
     beep("wrong");
     checkLose(p);
     const anyone = !soloMode() && players().some(eligible);
-    if(R().resume && anyone){
+    if(!afterReveal && R().resume && anyone){
       qs.first=null; qs.order=[]; qs.open=true; qs.ep++;
       if(qs.buzzAt>=len){ ph="think"; startTimer("think", Math.max(1,R().think||5)); }
       else { ph="reading"; setTimeout(()=>{ if(ph==="reading") readFrom(qs.buzzAt,false); }, 700); }
@@ -666,7 +672,7 @@ function through(){
   pushUndo(); finishQuestion(); render();
 }
 function rereadFromStart(){
-  if(ph==="answering") return;
+  if(ph==="answering"||ph==="judging") return;
   if(ph==="idle"){ startQuestion(); return; }
   if(ph==="reading"||ph==="think"){ stopSpeech(); stopTimer(); ph="reading"; qs.open=true; readFrom(0,false); render(); }
 }
@@ -731,13 +737,13 @@ function renderText(){
 }
 function renderBuzz(){
   const bar=$("buzzBar");
-  if(ph!=="answering" || !qs.first){ bar.hidden=true; return; }
+  if(!(ph==="answering"||ph==="judging") || !qs.first){ bar.hidden=true; return; }
   const p=getP(qs.first); bar.hidden=false;
   bar.style.setProperty("--pc", colorOf(p)); bar.style.setProperty("--pc-soft", softOf(p));
   $("buzzWho").textContent=p.name;
   const rest=qs.order.slice(1).map((id,i)=>{ const q=getP(id); return q?`${i+2}番手 <b>${esc(q.name)}</b>`:""; }).filter(Boolean);
   $("buzzOrd").innerHTML = rest.join("　");
-  $("ansTimer").hidden = !(R().ans>0) || p.id==="solo";
+  $("ansTimer").hidden = ph!=="answering" || !(R().ans>0) || p.id==="solo";
 }
 function renderControls(){
   const c=$("controls"); const b=[];
@@ -745,7 +751,8 @@ function renderControls(){
   if(ph==="idle"){ b.push(btn("start","読み上げ開始","primary","Space")); }
   if(ph==="reading"){ if(soloMode()) b.push(btn("solobuzz","押す","bad","Space")); b.push(btn("through","スルー","","T")); b.push(btn("reread","最初から読む","","R")); }
   if(ph==="think"){ if(soloMode()) b.push(btn("solobuzz","押す","bad","Space")); b.push(btn("through","スルー（答えを出す）","","T")); }
-  if(ph==="answering"){ b.push(btn("right","正解","good","O")); b.push(btn("wrong","誤答","bad","X")); }
+  if(ph==="answering"){ b.push(btn("showanswer","答えを表示","primary","Enter")); b.push(btn("noanswer","答えられなかった","bad","X")); }
+  if(ph==="judging"){ b.push(btn("right","正解","good","O")); b.push(btn("wrong","誤答","bad","X")); }
   if(ph==="revealed"){ b.push(btn("next","次の問題へ","primary","Space")); b.push(btn("readans","答えを読む")); }
   b.push(`<span class="spacer"></span>`);
   if(undoStack.length) b.push(btn("undo","取り消し","ghost","U"));
@@ -756,19 +763,19 @@ function renderStage(){
   const q=Q(); const L=an.display.length;
   $("qNo").textContent = qs.started ? G().qcount : G().qcount+1;
   $("qOf").textContent = "問目";
-  const pills={idle:["待機中",""],reading:["読み上げ中","live"],think:["読み終わり","live"],answering:["解答中","hot"],revealed:["正解発表","okp"]};
+  const pills={idle:["待機中",""],reading:["読み上げ中","live"],think:["読み終わり","live"],answering:["解答中","hot"],judging:["正誤判定","hot"],revealed:["判定済み","okp"]};
   const [pt,pc]=pills[ph]; const pp=$("phasePill"); pp.textContent=pt; pp.className="pill "+pc;
   $("genrePill").textContent=q.g||"自作";
   const lp=$("levelPill"); lp.hidden=!q.d; lp.textContent="難易度 "+(q.d||""); lp.className="pill lv-"+(q.d||"");
   renderText(); renderBuzz();
   $("thinkBar").hidden = ph!=="think";
   const bn=$("banner"); bn.hidden=!banner; if(banner){ bn.textContent=banner.text; bn.className="banner"+(banner.kind==="out"?" out":""); }
-  const rv = ph==="revealed";
+  const rv = ph==="judging" || ph==="revealed";
   $("ansBox").hidden=!rv;
   if(rv){
     $("ansVal").textContent=analyze(q.a,{}).display;
     const ev=qs.events;
-    $("pressInfo").textContent = ev.length ? ev.map(e=>`${e.ok?"○":"×"} ${e.name}（${e.len?Math.round(e.pos/e.len*100):100}%）`).join("　") : "正解者なし（スルー）";
+    $("pressInfo").textContent = ph==="judging" ? "解答を確認して、正解か誤答かを判定してください" : ev.length ? ev.map(e=>`${e.ok?"○":"×"} ${e.name}（${e.len?Math.round(e.pos/e.len*100):100}%）`).join("　") : "正解者なし（スルー）";
   }
   renderControls();
 }
@@ -791,8 +798,8 @@ function renderBoard(){
     el.style.setProperty("--pc", colorOf(p)); el.style.setProperty("--pc-soft", softOf(p));
     let tag="";
     const oi=qs.order.indexOf(p.id);
-    if(ph==="answering" && oi===0){ el.classList.add("first"); tag="解答中"; }
-    else if(ph==="answering" && oi>0){ el.classList.add("queued"); tag=`${oi+1}番手`; }
+    if((ph==="answering"||ph==="judging") && oi===0){ el.classList.add("first"); tag=ph==="judging"?"判定待ち":"解答中"; }
+    else if((ph==="answering"||ph==="judging") && oi>0){ el.classList.add("queued"); tag=`${oi+1}番手`; }
     else if(p.status==="win"){ el.classList.add("win"); tag=`${p.rank}抜け`; }
     else if(p.status==="out"){ el.classList.add("out"); tag="失格"; }
     else if(p.sit && qs.started){ el.classList.add("sit"); tag="休み"; }
@@ -924,7 +931,7 @@ $("bookStop").onclick=()=>{ runId++; try{ speechSynthesis.cancel(); }catch(e){} 
 
 /* ---------- views ---------- */
 function setView(v){
-  if(v!=="game" && (ph==="reading"||ph==="think"||ph==="answering")){ go(state.idx); }
+  if(v!=="game" && (ph==="reading"||ph==="think"||ph==="answering"||ph==="judging")){ go(state.idx); }
   state.ui.view=v; save();
   $("viewGame").hidden=v!=="game"; $("viewBook").hidden=v!=="book"; $("viewSet").hidden=v!=="set";
   $("navGame").setAttribute("aria-current", v==="game"?"page":"false");
@@ -955,6 +962,8 @@ $("controls").addEventListener("click",e=>{
   else if(a==="solobuzz") buzzIn("solo");
   else if(a==="through") through();
   else if(a==="reread") rereadFromStart();
+  else if(a==="showanswer") showAnswer();
+  else if(a==="noanswer") judge(false);
   else if(a==="right") judge(true);
   else if(a==="wrong") judge(false);
   else if(a==="next") nextQuestion();
@@ -1019,8 +1028,9 @@ document.addEventListener("keydown",e=>{
     else if(ph==="revealed") nextQuestion();
     else if((ph==="reading"||ph==="think") && soloMode()) buzzIn("solo");
   }
-  else if(c==="Enter"||c==="NumpadEnter"||c==="KeyO"){ if(e.target.closest("button") && c!=="KeyO") return; if(ph==="answering"){ e.preventDefault(); judge(true); } }
-  else if(c==="KeyX"){ if(ph==="answering") judge(false); }
+  else if(c==="Enter"||c==="NumpadEnter"){ if(e.target.closest("button")) return; if(ph==="answering"){ e.preventDefault(); showAnswer(); } else if(ph==="judging"){ e.preventDefault(); judge(true); } }
+  else if(c==="KeyO"){ if(ph==="judging") judge(true); }
+  else if(c==="KeyX"){ if(ph==="answering"||ph==="judging") judge(false); }
   else if(c==="KeyT"){ through(); }
   else if(c==="KeyR"){ rereadFromStart(); }
   else if(c==="KeyU"){ undo(); }
@@ -1280,7 +1290,8 @@ function broadcast(){
     const pl={};
     players().filter(p=>p.remote).forEach(p=>{ pl[p.id]=[scoreText(p), statusCode(p), COLORS[p.color%COLORS.length]]; });
     const f=qs.first?getP(qs.first):null;
-    hostRoom.presence({role:"host", ep:qs.ep, open: !!(qs.open && (ph==="reading"||ph==="think")), ph, first:(ph==="answering"&&qs.first)||null, fn: (ph==="answering"&&f)?f.name:"", ord:qs.order.slice(0,6), pl, q:qs.started?G().qcount:G().qcount+1}).catch(()=>{});
+    const hasAnswerer=ph==="answering"||ph==="judging";
+    hostRoom.presence({role:"host", ep:qs.ep, open: !!(qs.open && (ph==="reading"||ph==="think")), ph, first:(hasAnswerer&&qs.first)||null, fn: (hasAnswerer&&f)?f.name:"", ord:qs.order.slice(0,6), pl, q:qs.started?G().qcount:G().qcount+1}).catch(()=>{});
   },30);
 }
 
@@ -1339,17 +1350,18 @@ function renderBz(){
   const ord = Array.isArray(s.ord) ? s.ord.indexOf(myId) : -1;
   if(code==="win") text="勝ち抜け！おめでとうございます";
   else if(code==="out") text="失格";
-  else if(s.first===myId){ text="あなたが解答者です！"; btn.classList.add("mine"); }
+  else if(s.first===myId){ text=s.ph==="judging"?"あなたの解答を判定中です":"あなたが解答者です！"; btn.classList.add("mine"); }
   else if(ord>0) text=`${ord+1}番手で押しました`;
   else if(code==="sit") text="この問題はお休みです";
   else if(code==="lock") text="誤答のため、この問題は押せません";
+  else if(s.ph==="judging") text=`${typeof s.fn==="string"?s.fn:""} の正誤判定中`;
   else if(s.ph==="answering") text=`${typeof s.fn==="string"?s.fn:""} が解答中`;
   else if(s.open){ text="押せます"; can=true; }
   else if(s.ph==="revealed") text="正解発表";
   else text="次の問題を待っています";
   st.textContent=text;
   btn.disabled = !(can || (s.ph==="answering" && code==="ok" && ord<0 && s.first!==myId));
-  btn.textContent = s.first===myId ? "解答中" : "押す";
+  btn.textContent = s.first===myId ? (s.ph==="judging"?"判定待ち":"解答中") : "押す";
 }
 function bzPress(e){
   e.preventDefault();

@@ -480,37 +480,58 @@ function eligible(p){ if(!p) return false; if(p.id==="solo") return !qs.lock.has
 
 /* ---------- speech ---------- */
 function speakSeq(items, onDone){
-  const id=++runId; let k=0;
+  const id=++runId; let k=0, dead=false;
   try{ speechSynthesis.cancel(); }catch(e){}
   if(state.set.lead && items.lead){ items=[{speak:"問題", rate:state.set.rate, pitch:state.set.pitch, pause:520, mora:3}, ...items]; }
   const next = () => {
     if(id!==runId) return;
     if(k>=items.length){ curU=null; onDone && onDone(); return; }
     const u=items[k++];
-    const ut=new SpeechSynthesisUtterance(u.speak);
+    const ut=typeof SpeechSynthesisUtterance==="function" ? new SpeechSynthesisUtterance(u.speak) : {};
     ut.lang="ja-JP"; if(voice) ut.voice=voice; ut.rate=u.rate; ut.pitch=u.pitch; ut.volume=state.set.vol;
-    const rec={u, ix:k-1, t0:0, bChar:-1};
-    ut.onstart=()=>{ if(id!==runId) return; rec.t0=performance.now(); curU=rec; };
-    ut.onboundary=e=>{ if(id===runId && typeof e.charIndex==="number") rec.bChar=e.charIndex; };
-    let finished=false;
+    const rec={u, ix:k-1, t0:0, bChar:-1, tCall:performance.now(), fake:false};
+    const expected = () => (u.mora||1)*msPerMora/(u.rate||1);
+    let finished=false, watch=0;
+    // 音声が鳴らなかった・すぐ終わったときも、推定の読み上げ速度で文字送りを続けてから次へ進む
+    const simulate=()=>{
+      rec.fake=true; rec.t0=rec.t0||rec.tCall; curU=rec;
+      const wait=Math.max(0, expected()-(performance.now()-rec.t0));
+      setTimeout(()=>{ if(id!==runId) return; if(u.end!=null) reveal=Math.max(reveal,u.end); curU=null; setTimeout(next, u.pause||0); }, wait);
+    };
     const fin=(err)=>{
-      if(finished || id!==runId) return; finished=true;
-      if(!err && rec.t0 && u.mora>=4){ const per=(performance.now()-rec.t0)*u.rate/u.mora; if(per>40 && per<400) msPerMora = msPerMora*0.6 + per*0.4; }
+      if(finished || id!==runId) return; finished=true; clearTimeout(watch);
+      const el=performance.now()-(rec.t0||rec.tCall);
+      if(err || el < expected()*0.5){ simulate(); return; }
+      if(rec.t0 && u.mora>=4){ const per=el*u.rate/u.mora; if(per>40 && per<400) msPerMora = msPerMora*0.6 + per*0.4; }
       if(u.end!=null) reveal=Math.max(reveal,u.end);
       curU=null;
       setTimeout(next, u.pause||0);
     };
+    ut.onstart=()=>{
+      if(id!==runId || finished) return; rec.t0=performance.now(); curU=rec;
+      // 読み始めたのに終わりが通知されないときの保険
+      clearTimeout(watch); watch=setTimeout(()=>{ if(id!==runId || finished) return; try{ speechSynthesis.cancel(); }catch(e){} fin(true); }, expected()*2.5+3000);
+    };
+    ut.onboundary=e=>{ if(id===runId && typeof e.charIndex==="number") rec.bChar=e.charIndex; };
     ut.onend=()=>fin(false);
-    ut.onerror=e=>{ if(e.error==="interrupted"||e.error==="canceled") return; fin(true); };
+    ut.onerror=e=>{ if(e.error==="interrupted"||e.error==="canceled") return; dead=true; speechFailed(e.error); fin(true); };
+    // 開始も終了も通知されない（音声エンジンが止まった）ときの保険
+    watch=setTimeout(()=>{ if(id!==runId || finished || rec.t0) return; finished=true; dead=true; speechFailed("timeout"); simulate(); }, 2500);
+    if(dead){ finished=true; clearTimeout(watch); simulate(); return; }
     window.__ut=ut;
-    speechSynthesis.speak(ut);
+    try{ speechSynthesis.speak(ut); }catch(e){ dead=true; speechFailed("exception"); fin(true); }
   };
   next();
+}
+let speechWarned=0;
+function speechFailed(why){
+  if(speechWarned===qs.ep) return; speechWarned=qs.ep;
+  toast("音声を再生できませんでした。文字送りだけ続けます"+(why&&why!=="timeout"?`（${why}）`:""));
 }
 function posFromUtt(rec){
   const u=rec.u; if(!u.marks) return reveal;
   let boundaryPos=null, estimatedPos=null;
-  if(rec.bChar>=0){
+  if(rec.bChar>=0 && !rec.fake){
     const mk=u.marks.find(m=>rec.bChar>=m.c0 && rec.bChar<m.c1) || u.marks[u.marks.length-1];
     boundaryPos=mk.t.end;
   }

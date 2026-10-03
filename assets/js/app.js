@@ -10,7 +10,24 @@ async function loadDefaultQuestions() {
   return questions;
 }
 const SAMPLE = await loadDefaultQuestions();
-const DEFAULT_SET = {rate:1.1,pitch:1,vol:1,mode:"hybrid",lead:true,turn:true,turnPause:320,post:1.03,fall:true,comma:false,paren:true,sound:true,voice:""};
+const DEFAULT_SET = {
+  rate:1.15,
+  pitch:1.08,
+  vol:1,
+  mode:"hybrid",
+  lead:true,
+  turn:true,
+  turnPause:420,
+  post:1.02,
+  fall:true,
+  comma:false,
+  paren:true,
+  sound:true,
+  voice:"",
+  voiceProvider:"browser-fallback",
+  voicevoxUrl:"http://localhost:50021",
+  voicevoxSpeaker:"1"
+};
 const SAMPLE_VER = 4;
 const sampleQs = () => SAMPLE.map((x,i)=>({
   id:x.id||"s2_"+i,

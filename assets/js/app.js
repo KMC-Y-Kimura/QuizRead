@@ -383,34 +383,66 @@ function buildPlan(an){
 /* ---------- voices ---------- */
 let voices=[], voice=null;
 const isNeural = v => /Natural|Neural|Online|Google|Premium|Enhanced|拡張|プレミアム|Siri/i.test(v.name);
-function scoreVoice(v){
-  const n=v.name; let s=0;
-  if(/Natural|Neural/i.test(n)) s+=60; if(/Online/i.test(n)) s+=10; if(/Google/i.test(n)) s+=35;
-  if(/Premium|プレミアム/i.test(n)) s+=45; if(/Enhanced|拡張|Siri/i.test(n)) s+=30;
-  if(/Nanami/i.test(n)) s+=6; if(/Keita|Aoi|Daichi|Mayu|Naoki|Shiori/i.test(n)) s+=3;
-  if(/Desktop|Haruka|Ayumi|Ichiro|Sayaka/i.test(n) && !/Natural/i.test(n)) s-=20;
+
+function scoreVoice(v) {
+  const n = v.name;
+  let s = 0;
+  if (/Natural|Neural/i.test(n)) s += 90;
+  if (/Online/i.test(n)) s += 18;
+  if (/Google/i.test(n)) s += 50;
+  if (/Premium|プレミアム/i.test(n)) s += 45;
+  if (/Enhanced|拡張|Siri/i.test(n)) s += 35;
+  if (/Nanami/i.test(n)) s += 12;
+  if (/Keita|Aoi|Daichi|Mayu|Naoki|Shiori|Yuki|Kyoko|Samantha|Aria|Daniel/i.test(n)) s += 8;
+  if (/Desktop|Haruka|Ayumi|Ichiro|Sayaka/i.test(n) && !/Natural/i.test(n)) s -= 22;
   return s;
 }
-function voiceAdvice(v){
-  if(!v) return "";
-  if(/Natural|Neural/i.test(v.name)) return "ニューラル音声です。人の読み方に最も近い声です。";
-  if(isNeural(v)) return "比較的自然な声です。さらに自然にしたいときは、Microsoft Edge で開くと「Nanami (Natural)」などのニューラル音声が選べます。";
-  return "機械的に聞こえやすい旧型の音声です。Microsoft Edge で開くと「Nanami (Natural)」「Keita (Natural)」などのニューラル音声、Chrome では「Google 日本語」、Mac では「設定 › アクセシビリティ › 読み上げコンテンツ」から「Kyoko（拡張）」などを追加して使えます。";
+
+function normalizeVoiceChoice(list) {
+  return list
+    .filter(v => /^ja/i.test(v.lang) || /Japanese|日本語/i.test(v.name))
+    .sort((a, b) => scoreVoice(b) - scoreVoice(a));
 }
-function loadVoices(){
-  if(!("speechSynthesis" in window)){ setChip("chipVoice","warn","このブラウザは音声合成に対応していません"); return; }
-  voices = speechSynthesis.getVoices().filter(v=>/^ja/i.test(v.lang)).sort((a,b)=>scoreVoice(b)-scoreVoice(a));
-  const sel=$("voiceSel"); sel.innerHTML="";
-  if(!voices.length){
-    sel.innerHTML='<option value="">日本語の音声が見つかりません</option>';
-    setChip("chipVoice","warn","日本語の音声なし");
-    $("voiceHint").textContent="Microsoft Edge の「Nanami (Natural)」、Chrome の「Google 日本語」、Mac の「Kyoko」などが使えます。OS の設定で日本語音声を追加してください。";
+
+function loadVoices() {
+  if (!("speechSynthesis" in window)) {
+    setChip("chipVoice", "warn", "このブラウザは音声合成に対応していません");
     return;
   }
-  const groups=[["ニューラル音声（自然）",voices.filter(v=>/Natural|Neural/i.test(v.name))],["比較的自然な声",voices.filter(v=>!/Natural|Neural/i.test(v.name) && isNeural(v))],["標準の声",voices.filter(v=>!isNeural(v))]];
-  for(const [label,list] of groups){ if(!list.length) continue; const g=document.createElement("optgroup"); g.label=label;
-    for(const v of list){ const o=document.createElement("option"); o.value=v.voiceURI; o.textContent=v.name.replace(/^Microsoft /,"").replace(/ - Japanese \(Japan\)/,""); g.appendChild(o); } sel.appendChild(g); }
-  voice = voices.find(v=>v.voiceURI===state.set.voice) || voices[0];
+
+  const found = normalizeVoiceChoice(speechSynthesis.getVoices());
+  voices = found;
+
+  const sel = $("voiceSel");
+  sel.innerHTML = "";
+
+  if (!voices.length) {
+    sel.innerHTML = '<option value="">日本語の音声が見つかりません</option>';
+    setChip("chipVoice", "warn", "日本語の音声なし");
+    $("voiceHint").textContent = "Microsoft Edge の「Nanami (Natural)」や Chrome の「Google 日本語」を使ってください。";
+    return;
+  }
+
+  const groups = [
+    ["ニューラル音声（自然）", voices.filter(v => /Natural|Neural|Online/i.test(v.name))],
+    ["比較的自然な声", voices.filter(v => !/Natural|Neural|Online/i.test(v.name) && isNeural(v))],
+    ["一般的な日本語音声", voices.filter(v => !isNeural(v))]
+  ];
+
+  for (const [label, list] of groups) {
+    if (!list.length) continue;
+    const g = document.createElement("optgroup");
+    g.label = label;
+    for (const v of list) {
+      const o = document.createElement("option");
+      o.value = v.voiceURI;
+      o.textContent = v.name.replace(/^Microsoft /, "").replace(/ - Japanese \(Japan\)/, "");
+      g.appendChild(o);
+    }
+    sel.appendChild(g);
+  }
+
+  voice = voices.find(v => v.voiceURI === state.set.voice) || voices[0];
   sel.value = voice.voiceURI;
   updateVoiceUI();
 }
@@ -496,47 +528,68 @@ const soloMode = () => players().length===0;
 function eligible(p){ if(!p) return false; if(p.id==="solo") return !qs.lock.has("solo"); return p.status==="" && !p.sit && !qs.lock.has(p.id) && !(p.remote && p.online===false); }
 
 /* ---------- speech ---------- */
-function speakSeq(items, onDone){
-  const id=++runId; let k=0, dead=false;
-  try{ speechSynthesis.cancel(); }catch(e){}
-  if(state.set.lead && items.lead){ items=[{speak:"問題", rate:state.set.rate, pitch:state.set.pitch, pause:520, mora:3}, ...items]; }
+function speakSeq(items, onDone) {
+  const provider = state.set.voiceProvider || "browser-fallback";
+
+  if (provider === "voicevox") {
+    return speakVoicevoxSequence(items, onDone);
+  }
+
+  if (provider === "browser-fallback") {
+    return voicevoxReachable().then(ok => {
+      if (ok) return speakVoicevoxSequence(items, onDone);
+      const id = ++runId;
+      let k = 0;
+      try { speechSynthesis.cancel(); } catch (e) {}
+      if (state.set.lead && items.lead) {
+        items = [{ speak: "問題", rate: state.set.rate, pitch: state.set.pitch, pause: 520, mora: 3 }, ...items];
+      }
+      const next = () => {
+        if (id !== runId) return;
+        if (k >= items.length) {
+          curU = null;
+          onDone && onDone();
+          return;
+        }
+        const u = items[k++];
+        const ut = new SpeechSynthesisUtterance(u.speak);
+        ut.lang = "ja-JP";
+        if (voice) ut.voice = voice;
+        ut.rate = u.rate;
+        ut.pitch = u.pitch;
+        ut.volume = state.set.vol;
+        ut.onend = () => { if (id === runId) { curU = null; setTimeout(next, u.pause || 0); } };
+        ut.onerror = () => { if (id === runId) { curU = null; setTimeout(next, u.pause || 0); } };
+        try { speechSynthesis.speak(ut); } catch (e) { curU = null; setTimeout(next, u.pause || 0); }
+      };
+      next();
+    });
+  }
+
+  // browser
+  const id = ++runId;
+  let k = 0;
+  try { speechSynthesis.cancel(); } catch (e) {}
+  if (state.set.lead && items.lead) {
+    items = [{ speak: "問題", rate: state.set.rate, pitch: state.set.pitch, pause: 520, mora: 3 }, ...items];
+  }
   const next = () => {
-    if(id!==runId) return;
-    if(k>=items.length){ curU=null; onDone && onDone(); return; }
-    const u=items[k++];
-    const ut=typeof SpeechSynthesisUtterance==="function" ? new SpeechSynthesisUtterance(u.speak) : {};
-    ut.lang="ja-JP"; if(voice) ut.voice=voice; ut.rate=u.rate; ut.pitch=u.pitch; ut.volume=state.set.vol;
-    const rec={u, ix:k-1, t0:0, bChar:-1, tCall:performance.now(), fake:false};
-    const expected = () => (u.mora||1)*msPerMora/(u.rate||1);
-    let finished=false, watch=0;
-    // 音声が鳴らなかった・すぐ終わったときも、推定の読み上げ速度で文字送りを続けてから次へ進む
-    const simulate=()=>{
-      rec.fake=true; rec.t0=rec.t0||rec.tCall; curU=rec;
-      const wait=Math.max(0, expected()-(performance.now()-rec.t0));
-      setTimeout(()=>{ if(id!==runId) return; if(u.end!=null) reveal=Math.max(reveal,u.end); curU=null; setTimeout(next, u.pause||0); }, wait);
-    };
-    const fin=(err)=>{
-      if(finished || id!==runId) return; finished=true; clearTimeout(watch);
-      const el=performance.now()-(rec.t0||rec.tCall);
-      if(err || el < expected()*0.5){ simulate(); return; }
-      if(rec.t0 && u.mora>=4){ const per=el*u.rate/u.mora; if(per>40 && per<400) msPerMora = msPerMora*0.6 + per*0.4; }
-      if(u.end!=null) reveal=Math.max(reveal,u.end);
-      curU=null;
-      setTimeout(next, u.pause||0);
-    };
-    ut.onstart=()=>{
-      if(id!==runId || finished) return; rec.t0=performance.now(); curU=rec;
-      // 読み始めたのに終わりが通知されないときの保険
-      clearTimeout(watch); watch=setTimeout(()=>{ if(id!==runId || finished) return; try{ speechSynthesis.cancel(); }catch(e){} fin(true); }, expected()*2.5+3000);
-    };
-    ut.onboundary=e=>{ if(id===runId && typeof e.charIndex==="number") rec.bChar=e.charIndex; };
-    ut.onend=()=>fin(false);
-    ut.onerror=e=>{ if(e.error==="interrupted"||e.error==="canceled") return; dead=true; speechFailed(e.error); fin(true); };
-    // 開始も終了も通知されない（音声エンジンが止まった）ときの保険
-    watch=setTimeout(()=>{ if(id!==runId || finished || rec.t0) return; finished=true; dead=true; speechFailed("timeout"); simulate(); }, 2500);
-    if(dead){ finished=true; clearTimeout(watch); simulate(); return; }
-    window.__ut=ut;
-    try{ speechSynthesis.speak(ut); }catch(e){ dead=true; speechFailed("exception"); fin(true); }
+    if (id !== runId) return;
+    if (k >= items.length) {
+      curU = null;
+      onDone && onDone();
+      return;
+    }
+    const u = items[k++];
+    const ut = new SpeechSynthesisUtterance(u.speak);
+    ut.lang = "ja-JP";
+    if (voice) ut.voice = voice;
+    ut.rate = u.rate;
+    ut.pitch = u.pitch;
+    ut.volume = state.set.vol;
+    ut.onend = () => { if (id === runId) { curU = null; setTimeout(next, u.pause || 0); } };
+    ut.onerror = () => { if (id === runId) { curU = null; setTimeout(next, u.pause || 0); } };
+    try { speechSynthesis.speak(ut); } catch (e) { curU = null; setTimeout(next, u.pause || 0); }
   };
   next();
 }
@@ -587,6 +640,98 @@ function onReadEnd(){
   reveal=an.display.length; ph="think";
   startTimer("think", Math.max(1, R().think||5));
   render();
+}
+
+async function voicevoxReachable() {
+  const url = (state.set.voicevoxUrl || "http://localhost:50021").replace(/\/+$/, "");
+  try {
+    const res = await fetch(`${url}/version`, { cache: "no-store" });
+    return res.ok;
+  } catch (e) {
+    return false;
+  }
+}
+
+async function voicevoxSpeak(text, opts = {}) {
+  const url = (state.set.voicevoxUrl || "http://localhost:50021").replace(/\/+$/, "");
+  const speaker = Number(state.set.voicevoxSpeaker || 1) || 1;
+
+  try {
+    const queryRes = await fetch(`${url}/audio_query?text=${encodeURIComponent(text)}&speaker=${speaker}`, {
+      method: "POST",
+      cache: "no-store"
+    });
+    if (!queryRes.ok) throw new Error(`audio_query failed: ${queryRes.status}`);
+
+    const query = await queryRes.json();
+    query.speedScale = Math.max(0.3, Math.min(2.2, Number(opts.rate) || 1));
+    query.pitchScale = Math.max(-0.8, Math.min(1.4, Number(opts.pitch) || 1)) - 1;
+    query.intonationScale = 1.05;
+
+    const synthRes = await fetch(`${url}/synthesis?speaker=${speaker}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(query),
+      cache: "no-store"
+    });
+    if (!synthRes.ok) throw new Error(`synthesis failed: ${synthRes.status}`);
+
+    const blob = await synthRes.blob();
+    const audioUrl = URL.createObjectURL(blob);
+    const audio = new Audio(audioUrl);
+    audio.volume = Math.min(1, Math.max(0, Number(state.set.vol) || 1));
+    await new Promise((resolve, reject) => {
+      audio.onended = () => resolve();
+      audio.onerror = () => reject(new Error("voicevox playback failed"));
+      audio.play().catch(reject);
+    });
+    URL.revokeObjectURL(audioUrl);
+    return true;
+  } catch (e) {
+    console.warn("VoiceVox failed:", e);
+    return false;
+  }
+}
+
+async function speakVoicevoxSequence(items, onDone) {
+  const id = ++runId;
+  let index = 0;
+
+  const next = async () => {
+    if (id !== runId) return;
+    if (index >= items.length) {
+      curU = null;
+      onDone && onDone();
+      return;
+    }
+
+    const u = items[index++];
+    curU = { u, ix: index - 1, t0: performance.now(), fake: false };
+
+    const ok = await voicevoxSpeak(u.speak, { rate: u.rate, pitch: u.pitch });
+    if (id !== runId) return;
+
+    if (!ok) {
+      // 失敗したらブラウザ音声へフォールバック
+      if ("speechSynthesis" in window) {
+        const ut = new SpeechSynthesisUtterance(u.speak);
+        ut.lang = "ja-JP";
+        ut.rate = u.rate;
+        ut.pitch = u.pitch;
+        ut.volume = state.set.vol;
+        if (voice) ut.voice = voice;
+        ut.onend = () => { if (id === runId) { curU = null; setTimeout(next, u.pause || 0); } };
+        ut.onerror = () => { if (id === runId) { curU = null; setTimeout(next, u.pause || 0); } };
+        try { speechSynthesis.cancel(); speechSynthesis.speak(ut); } catch (_) {}
+        return;
+      }
+    }
+
+    curU = null;
+    setTimeout(next, u.pause || 0);
+  };
+
+  next();
 }
 
 /* ---------- game flow ---------- */

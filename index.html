@@ -29,7 +29,7 @@
       <button class="btn small hostonly" id="joinBtn">スマホを早押しボタンにする</button>
     </div>
   </header>
-  <div class="warnbox" id="voiceWarn" hidden>いま使える日本語の声は旧型で、機械的に聞こえやすいものです。<b>Microsoft Edge</b> でこのページを開くと、人の声に近いニューラル音声（Nanami・Keita など）で読み上げられます。Chrome では「Google 日本語」を選んでください。</div>
+  <div class="warnbox" id="voiceWarn" hidden>いま使える日本語の声は旧型で、機械的に聞こえやすいものです。<b>Microsoft Edge</b> でこのページを開くと、人の声に近い「Nanami (Natural)」などの声が使えます。</div>
 
   <!-- ===== 対戦 ===== -->
   <section id="viewGame" class="grid">
@@ -74,12 +74,12 @@
           <button class="btn" id="pAdd">＋ 参加者を追加</button>
           <span class="spacer"></span>
         </div>
-        <p class="hint">早押しキーは「キー」を押してから、割り当てたいキーを押します。キーボードとして動く早押し機もそのまま使えます。O・X・T・R・U・Space・Enter は司会の操作に使うため割り当てられません。</p>
+        <p class="hint">早押しキーは「キー」を押してから、割り当てたいキーを押します。キーボードとして動く早押し機もそのまま使えます。O・X・T・R・U キーは司会の操作に使うため割り当てられません。</p>
         <label class="chk"><input type="checkbox" id="tapBuzz"><span>得点カードをタップして早押し<small>タブレット1台を囲んで遊ぶとき用</small></span></label>
         <div class="roombox" id="roomBox">
           <b>スマホを早押しボタンにする</b>
           <div id="roomIdle">
-            <p class="hint" id="roomHint">部員がそれぞれのスマホでこのページを開き、「スマホを早押しボタンにする」からコードを入れると参加できます。参加するには、このページを部員に共有（招待）しておく必要があります。</p>
+            <p class="hint" id="roomHint">部員がそれぞれのスマホでこのページを開き、「スマホを早押しボタンにする」からコードを入れると参加できます。</p>
             <div class="row" style="margin-top:8px"><button class="btn" id="roomStart">受付を始める</button></div>
           </div>
           <div id="roomOn" hidden>
@@ -168,7 +168,7 @@
           <span class="spacer"></span>
           <button class="btn primary" id="useQ">この問題から対戦</button>
         </div>
-        <p class="hint">読みの指定は <code>漢字《よみ》</code>、区切りたいときは <code>｜百舌鳥古市《もずふるいち》</code>。<code>関ヶ原（せきがはら）</code> のようなかっこ書きの読みは、読み上げずにルビとして扱います。</p>
+        <p class="hint">読みの指定は <code>漢字《よみ》</code>、区切りたいときは <code>｜百舌鳥古市《もずふるいち》</code>。<code>関ヶ原（せきがはら）</code> のようにかっこで指定することもできます。</p>
       </section>
       <section class="card section" aria-label="辞書">
         <h2>辞書 <span class="sub">どの問題でもこの読みで読み上げます</span></h2>
@@ -194,7 +194,7 @@
         <details>
           <summary>まとめて読み込む / 書き出す</summary>
           <div style="display:flex;flex-direction:column;gap:8px;margin-top:10px">
-            <p class="hint">JSON か、1行1問のテキストを貼り付けます。テキストは問題文と答えをタブか <code>【答】</code> で区切り、3列目にジャンル、4列目に難易度（C・B・A・S）も書けます。JSON は <code>[{"q":"問題文","a":"答え","g":"ジャンル","d":"B"}]</code> の配列か、書き出したファイルの形式（<code>{"questions":[…],"dict":{…}}</code>）に対応しています。同じ問題はとばします。</p>
+            <p class="hint">JSON か、1行1問のテキストを貼り付けます。テキストは問題文と答えをタブか <code>【答】</code> で区切り、3列目にジャンル、4列目に難易度（C/B/A/S）を入れられます。</p>
             <textarea id="bulk" rows="5" placeholder='日本で一番長い川は何でしょう？【答】信濃川&#10;または [{"q":"…","a":"…","g":"地理"}]'></textarea>
             <div class="row">
               <button class="btn" id="bulkAdd">追加</button>
@@ -217,6 +217,26 @@
   <section id="viewSet" hidden>
     <div class="card section" style="max-width:720px">
       <h2>音声と読み方</h2>
+      <div class="field">
+        <label class="lbl" for="voiceProvider">音声プロバイダ</label>
+        <select id="voiceProvider" style="flex:1;min-width:0">
+          <option value="browser">ブラウザの音声（標準）</option>
+          <option value="voicevox">VoiceVox（より自然な音声）</option>
+          <option value="browser-fallback">ブラウザ優先 + VoiceVoxフォールバック</option>
+        </select>
+      </div>
+      <div id="voicevoxRow" hidden>
+        <div class="field">
+          <label class="lbl" for="voicevoxUrl">VoiceVox Engine URL</label>
+          <input type="text" id="voicevoxUrl" value="http://localhost:50021" style="flex:1;min-width:0">
+          <span class="hint">ローカル VoiceVox Engine の URL（例：http://localhost:50021）</span>
+        </div>
+        <div class="field">
+          <label class="lbl" for="voicevoxSpeaker">VoiceVox スピーカーID</label>
+          <input type="number" id="voicevoxSpeaker" value="1" min="0" style="width:100px">
+          <span class="hint">話者ID（1=ずんだもん、2=四国めたん、など）</span>
+        </div>
+      </div>
       <div class="field">
         <label class="lbl" for="voiceSel">声</label>
         <div class="row"><select id="voiceSel" style="flex:1;min-width:0"></select><button class="btn" id="voiceTry">試聴</button></div>
@@ -249,11 +269,11 @@
   <div class="row"><h1>早押しボタン</h1><span class="spacer"></span><button class="btn small ghost" id="bzLeave">戻る</button></div>
   <div id="bzJoin" class="card section">
     <p class="hint" id="bzInvite" hidden></p>
-    <div class="field" id="bzCodeField"><label class="lbl" for="bzCode">参加コード（司会の画面に表示されている4桁）</label><input type="text" id="bzCode" inputmode="numeric" maxlength="4" autocomplete="off" style="font-size:24px;letter-spacing:.2em"></div>
+    <div class="field" id="bzCodeField"><label class="lbl" for="bzCode">参加コード（司会の画面に表示されている4桁）</label><input type="text" id="bzCode" inputmode="numeric" maxlength="4" autocomplete="off" style="font-size:18px"></div>
     <div class="field"><label class="lbl" for="bzName">名前</label><input type="text" id="bzName" maxlength="12" autocomplete="nickname" style="font-size:18px"></div>
     <button class="btn primary" id="bzGo">参加する</button>
     <p class="hint" id="bzErr"></p>
-    <div class="warnbox network-warning" id="bzNetworkHelp" role="alert" hidden><strong>接続できないとき</strong><br>司会の端末と同じWi‑Fiに接続してください。VPNやiCloudプライベートリレーも一時的にオフにして、もう一度お試しください。</div>
+    <div class="warnbox network-warning" id="bzNetworkHelp" role="alert" hidden><strong>接続できないとき</strong><br>司会の端末と同じWi‑Fiに接続してください。VPNやiCloudプライベートリレーを使っていると接続できません。</div>
   </div>
   <div id="bzPlay" hidden style="display:flex;flex-direction:column;gap:14px;flex:1">
     <div class="me"><span><b id="bzMe"></b></span><span id="bzScore"></span></div>
@@ -265,6 +285,6 @@
 <script>window.QUIZ_DICT_RAW=true;</script>
 <script src="vendor/kuromoji.min.js"></script>
 <script src="vendor/qrcode.js"></script>
-<script src="assets/js/app.js?v=20260929-4"></script>
+<script src="assets/js/app.js?v=20260929-5"></script>
 </body>
 </html>
